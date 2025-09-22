@@ -1,0 +1,92 @@
+// --- Motor pinout (Arduino Uno) ---
+#define enA 9    // PWM
+#define in1 8
+#define in2 7
+
+#define enB 3    // PWM
+#define in3 2
+#define in4 4
+
+// --- Control ---
+int baseSpeed = 180;   // 0..255 (adjust with + / - from laptop)
+const int spinSpeed = 180;
+
+void setup() {
+  pinMode(enA, OUTPUT); pinMode(in1, OUTPUT); pinMode(in2, OUTPUT);
+  pinMode(enB, OUTPUT); pinMode(in3, OUTPUT); pinMode(in4, OUTPUT);
+
+  stopAll();
+  Serial.begin(115200);
+}
+
+void loop() {
+  if (Serial.available()) {
+    char c = Serial.read();
+    handleCommand(c);
+  }
+}
+
+/* -------- Motor helpers -------- */
+void setMotorA(int dir, int pwm) { // dir: 1=FWD, -1=REV, 0=coast
+  pwm = constrain(pwm, 0, 255);
+  if (dir > 0) { digitalWrite(in1, HIGH); digitalWrite(in2, LOW);  }
+  else if (dir < 0) { digitalWrite(in1, LOW); digitalWrite(in2, HIGH); }
+  else { digitalWrite(in1, LOW); digitalWrite(in2, LOW); } // coast
+  analogWrite(enA, pwm);
+}
+void setMotorB(int dir, int pwm) {
+  pwm = constrain(pwm, 0, 255);
+  if (dir > 0) { digitalWrite(in3, LOW);  digitalWrite(in4, HIGH); } // note: wiring orientation
+  else if (dir < 0) { digitalWrite(in3, HIGH); digitalWrite(in4, LOW); }
+  else { digitalWrite(in3, LOW);  digitalWrite(in4, LOW); }
+  analogWrite(enB, pwm);
+}
+
+void stopAll() { brakeA(); brakeB(); analogWrite(enA, 0); analogWrite(enB, 0); }
+void brakeA()  { digitalWrite(in1, HIGH); digitalWrite(in2, HIGH); }
+void brakeB()  { digitalWrite(in3, HIGH); digitalWrite(in4, HIGH); }
+
+/* -------- Robot motions -------- */
+void forward()      { setMotorA( 1, baseSpeed); setMotorB( 1, baseSpeed); }
+void back()         { setMotorA(-1, baseSpeed); setMotorB(-1, baseSpeed); }
+void turnLeft()     { setMotorA( 0, 0);         setMotorB( 1, baseSpeed); } // pivot left (right wheel only)
+void turnRight()    { setMotorA( 1, baseSpeed); setMotorB( 0, 0);         } // pivot right (left wheel only)
+void spinLeft()     { setMotorA(-1, spinSpeed); setMotorB( 1, spinSpeed); } // in-place CCW
+void spinRight()    { setMotorA( 1, spinSpeed); setMotorB(-1, spinSpeed); } // in-place CW
+void coast()        { setMotorA( 0, 0);         setMotorB( 0, 0);         } // free-run
+
+/* -------- Command parser --------
+   F=forward, B=back, L=turn left, R=turn right, 
+   Q=spin left (in place), E=spin right (in place),
+   S=stop(brake), C=coast
+   +=faster, -=slower, 0..9 set speed (0=stop, 9=full)
+*/
+void handleCommand(char c) {
+  switch (c) {
+    case 'F': forward(); break;
+    case 'B': back(); break;
+    case 'L': turnLeft(); break;
+    case 'R': turnRight(); break;
+    case 'Q': spinLeft(); break;
+    case 'E': spinRight(); break;
+    case 'S': stopAll(); break;
+    case 'C': coast(); break;
+    case '+': baseSpeed = min(255, baseSpeed + 10); break;
+    case '-': baseSpeed = max(0,   baseSpeed - 10); break;
+    case '0': baseSpeed = 0; break;
+    case '1': baseSpeed = 28;  break;
+    case '2': baseSpeed = 56;  break;
+    case '3': baseSpeed = 84;  break;
+    case '4': baseSpeed = 112; break;
+    case '5': baseSpeed = 140; break;
+    case '6': baseSpeed = 168; break;
+    case '7': baseSpeed = 196; break;
+    case '8': baseSpeed = 224; break;
+    case '9': baseSpeed = 255; break;
+    default: break;
+  }
+  // Optional: echo speed for HUD
+  if (c=='+'||c=='-'||(c>='0'&&c<='9')) {
+    Serial.print("SPEED="); Serial.println(baseSpeed);
+  }
+}
