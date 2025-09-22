@@ -1,0 +1,96 @@
+// Processing 4.x
+import processing.serial.*;
+
+Serial port;
+String[] ports;
+int portIndex = -1;   // set manually if needed (e.g., 0,1,2...)
+String lastSpeedHUD = "—";
+
+void setup() {
+  size(520, 200);
+  surface.setTitle("Robot Driver — Arrow Keys");
+  textFont(createFont("Menlo", 16));
+  background(0);
+
+  // List ports in console
+  println("Available serial ports:");
+  ports = Serial.list();
+  for (int i = 0; i < ports.length; i++) println(i + ": " + ports[i]);
+
+  // Try to auto-pick a port that looks like Arduino
+  portIndex = pickArduinoPortIndex();
+  if (portIndex == -1) {
+    println(">>> Select a port index by setting portIndex at top and rerun.");
+  } else {
+    println("Opening " + ports[portIndex]);
+    port = new Serial(this, ports[portIndex], 115200);
+    port.clear();
+    delay(500);
+  }
+}
+
+int pickArduinoPortIndex() {
+  for (int i = 0; i < ports.length; i++) {
+    String p = ports[i].toLowerCase();
+    if (p.contains("usbmodem") || p.contains("usbserial") || p.contains("com")) return i;
+  }
+  return -1;
+}
+
+void draw() {
+  background(18);
+  fill(240);
+  text("Controls:", 20, 30);
+  text("↑ Forward (F)    ↓ Back (B)    ← Turn L (L)    → Turn R (R)", 20, 55);
+  text("[ Spin Left (Q)   ] Spin Right (E)   Space=Stop (S)   c=Coast (C)", 20, 80);
+  text("+ / - speed   0..9 set speed", 20, 105);
+  text("Port: " + (port != null ? ports[portIndex] : "Not connected"), 20, 140);
+  text("Speed HUD: " + lastSpeedHUD, 20, 165);
+
+  // Read any feedback from Arduino (e.g., SPEED=xxx)
+  if (port != null && port.available() > 0) {
+    String line = port.readStringUntil('\n');
+    if (line != null) {
+      line = trim(line);
+      if (line.startsWith("SPEED=")) lastSpeedHUD = line.substring(6);
+      println(line);
+    }
+  }
+}
+
+void keyPressed() {
+  if (port == null) return;
+
+  switch (keyCode) {
+    case UP:    send('F'); break;
+    case DOWN:  send('B'); break;
+    case LEFT:  send('L'); break;
+    case RIGHT: send('R'); break;
+    default:
+      // non-arrow keys
+      if (key == '[') send('Q');        // spin left (in place)
+      else if (key == ']') send('E');   // spin right (in place)
+      else if (key == ' ') send('S');   // stop/brake
+      else if (key == 'c' || key == 'C') send('C'); // coast
+      else if (key == '+' || key == '=') send('+');
+      else if (key == '-') send('-');
+      else if (key >= '0' && key <= '9') send(key);
+      break;
+  }
+}
+
+void keyReleased() {
+  if (port == null) return;
+
+  // When an arrow is released, stop to avoid runaway
+  if (keyCode == UP || keyCode == DOWN || keyCode == LEFT || keyCode == RIGHT) {
+    send('S');
+  }
+}
+
+void send(char c) {
+  if (port != null) {
+    port.write((byte)c);
+    // println("Sent: " + c);
+  }
+}
