@@ -1,0 +1,84 @@
+// Processing 4.x
+import processing.serial.*;
+
+import processing.serial.*;
+
+Serial port;
+String[] ports;
+int portIndex = 2;   // Open port 2 directly
+String lastSpeedHUD = "—";
+
+void setup() {
+  size(520, 200);
+  surface.setTitle("Robot Driver — Arrow Keys");
+  textFont(createFont("Menlo", 16));
+  background(0);
+
+  // List all available serial ports
+  println("Available serial ports:");
+  ports = Serial.list();
+  for (int i = 0; i < ports.length; i++) println(i + ": " + ports[i]);
+
+  // Open port 2 directly
+  if (ports.length > portIndex) {
+    println("Opening port " + ports[portIndex]);
+    port = new Serial(this, ports[portIndex], 115200);
+    port.clear();
+    delay(500);
+  } else {
+    println("Port index " + portIndex + " not available. Please check your connections.");
+  }
+}
+
+void draw() {
+  background(18);
+  fill(240);
+  text("Controls:", 20, 30);
+  text("↑ Forward (F)    ↓ Back (B)    ← Turn L (L)    → Turn R (R)", 20, 55);
+  text("[ Spin Left (Q)   ] Spin Right (E)   Space=Stop (S)   c=Coast (C)", 20, 80);
+  text("+ / - speed   0..9 set speed", 20, 105);
+  text("Port: " + (port != null ? ports[portIndex] : "Not connected"), 20, 140);
+  text("Speed HUD: " + lastSpeedHUD, 20, 165);
+
+  if (port != null && port.available() > 0) {
+    String line = port.readStringUntil('\n');
+    if (line != null) {
+      line = trim(line);
+      if (line.startsWith("SPEED=")) lastSpeedHUD = line.substring(6);
+      println(line);
+    }
+  }
+}
+
+void keyPressed() {
+  if (port == null) return;
+
+  switch (keyCode) {
+    case UP:    send('F'); break;
+    case DOWN:  send('B'); break;
+    case LEFT:  send('L'); break;
+    case RIGHT: send('R'); break;
+    default:
+      if (key == '[') send('Q');
+      else if (key == ']') send('E');
+      else if (key == ' ') send('S');
+      else if (key == 'c' || key == 'C') send('C');
+      else if (key == '+' || key == '=') send('+');
+      else if (key == '-') send('-');
+      else if (key >= '0' && key <= '9') send(key);
+      break;
+  }
+}
+
+void keyReleased() {
+  if (port == null) return;
+  if (keyCode == UP || keyCode == DOWN || keyCode == LEFT || keyCode == RIGHT) {
+    send('S');
+  }
+}
+
+void send(char c) {
+  if (port != null) {
+    port.write((byte)c);
+  }
+}
